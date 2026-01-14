@@ -1,0 +1,213 @@
+{
+  "name": "n8n-supabase-ai-pipeline",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "food-log",
+        "responseMode": "responseNode",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "a3e61f01-fab8-4203-98d7-06cbdf25a3b0",
+      "name": "Webhook",
+      "webhookId": "9ce84f72-49e0-4a96-9f04-dea2c913ab0d"
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://api.groq.com/openai/v1/chat/completions",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpHeaderAuth",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={\n  \"model\": \"llama-3.3-70b-versatile\",\n  \"messages\": [\n    {\n      \"role\": \"system\",\n      \"content\": \"Você é uma API de Nutriçãoe Personal Trainer. Responda APENAS JSON. Schema: { \\\"calories\\\": 0, \\\"macros\\\": { \\\"protein\\\": 0 } }.\"\n    },\n    {\n      \"role\": \"user\",\n      \"content\": \"{{ $node['Webhook'].json.body.message }} (Responder JSON)\"\n    }\n  ],\n  \"response_format\": { \"type\": \"json_object\" }\n}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.3,
+      "position": [
+        416,
+        0
+      ],
+      "id": "ad95f633-1f62-40be-94f6-6430a37c32ee",
+      "name": "HTTP Request",
+      "credentials": {
+        "httpHeaderAuth": {
+          "id": "SeoRPOdcAAot4xOf",
+          "name": "Header Auth account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "jsCode": "const content = items[0].json.choices[0].message.content;\nconst aiData = JSON.parse(content);\nconst originalInput = $node[\"Webhook\"].json.body;\n\nreturn [\n  {\n    json: {\n      user_id: originalInput.user_id,\n      raw_text: originalInput.message,\n      ...aiData,\n      processed_json: aiData // <--- NOVO: Cria o campo explícito para o banco\n    }\n  }\n];"
+      },
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        624,
+        0
+      ],
+      "id": "f3c422ef-ed6c-451b-88fe-139edad56323",
+      "name": "Code in JavaScript"
+    },
+    {
+      "parameters": {
+        "tableId": "food_logs",
+        "fieldsUi": {
+          "fieldValues": [
+            {
+              "fieldId": "user_id",
+              "fieldValue": "={{ $node[\"Webhook\"].json[\"body\"][\"user_id\"] }}"
+            },
+            {
+              "fieldId": "raw_text",
+              "fieldValue": "={{$node[\"Webhook\"].json[\"body\"][\"message\"]}}"
+            },
+            {
+              "fieldId": "calories",
+              "fieldValue": "={{ $json[\"calories\"] }}"
+            },
+            {
+              "fieldId": "protein",
+              "fieldValue": "={{ $json[\"macros\"][\"protein\"] }}"
+            },
+            {
+              "fieldId": "carbs",
+              "fieldValue": "={{ $json[\"macros\"][\"carbs\"] }}"
+            },
+            {
+              "fieldId": "fat",
+              "fieldValue": "={{ $json[\"macros\"][\"fat\"] }}"
+            },
+            {
+              "fieldId": "processed_json",
+              "fieldValue": "={{ $json.processed_json }}"
+            }
+          ]
+        }
+      },
+      "type": "n8n-nodes-base.supabase",
+      "typeVersion": 1,
+      "position": [
+        832,
+        0
+      ],
+      "id": "eec8cb2c-cd92-47fb-9b46-fa89f2d8337b",
+      "name": "Create a row",
+      "credentials": {
+        "supabaseApi": {
+          "id": "9rjIYnUGBqPT6lCC",
+          "name": "Supabase account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      },
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1040,
+        0
+      ],
+      "id": "ca68a1c2-74d7-494b-b751-beca63c088eb",
+      "name": "Respond to Webhook"
+    },
+    {
+      "parameters": {
+        "fileSelector": "/home/node/prompt/system_prompt.txt",
+        "options": {
+          "dataPropertyName": "prompt_content"
+        }
+      },
+      "type": "n8n-nodes-base.readWriteFile",
+      "typeVersion": 1.1,
+      "position": [
+        208,
+        0
+      ],
+      "id": "d23a1e31-dc46-421f-9ebb-ea359ce2419a",
+      "name": "Read/Write Files from Disk"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Webhook": {
+      "main": [
+        [
+          {
+            "node": "Read/Write Files from Disk",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request": {
+      "main": [
+        [
+          {
+            "node": "Code in JavaScript",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Code in JavaScript": {
+      "main": [
+        [
+          {
+            "node": "Create a row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Create a row": {
+      "main": [
+        [
+          {
+            "node": "Respond to Webhook",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read/Write Files from Disk": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "executionOrder": "v1",
+    "availableInMCP": false
+  },
+  "versionId": "9eaa4a9b-9295-4133-a05a-276116198c19",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "7b8195e36842a623e03b08c4f097a8d5ad71c69a7db0b8ca8e7e386d039a8775"
+  },
+  "id": "D9oE2I7dzl8SVah3Ud-sh",
+  "tags": []
+}
