@@ -438,8 +438,8 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2064,
-        480
+        2144,
+        272
       ],
       "id": "31f21fa9-a018-4940-b826-24e5e49e4b2a",
       "name": "Agente Planner",
@@ -457,8 +457,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1840,
-        464
+        1920,
+        256
       ],
       "id": "5d5866a5-6c92-4759-8e60-2aa6cad53c78",
       "name": "Prepara Planner"
@@ -472,8 +472,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        2272,
-        512
+        2352,
+        304
       ],
       "id": "6c1e0d8e-0959-4a3d-b479-ab578bd86e47",
       "name": "Respond to Webhook4"
@@ -489,8 +489,8 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1936,
-        240
+        1888,
+        496
       ],
       "id": "ac1718fc-35ca-4052-9f60-8ff12ae2d3cb",
       "name": "Execute a SQL query1",
@@ -511,8 +511,8 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        2160,
-        240
+        2112,
+        496
       ],
       "id": "34fa60b7-7837-4ace-b193-c0b3bd5f8d45",
       "name": "Respond to Webhook5"
@@ -597,7 +597,7 @@
     },
     {
       "parameters": {
-        "jsCode": "function getSafeJson(nodeName) {\n    try {\n        const node = $(nodeName).first();\n        return (node && node.json) ? node.json : {};\n    } catch (e) {\n        return {};\n    }\n}\n\nconst prefs = getSafeJson(\"Get Preferences\");\nconst plan = getSafeJson(\"Get Workout Plan\");\nconst userMsg = $(\"Webhook\").first().json.body.message;\nlet memories = [];\ntry {\n    const learningNode = $(\"Get Learning\").first();\n    if (learningNode && learningNode.json && Object.keys(learningNode.json).length > 0) {\n         memories = $(\"Get Learning\").all().map(item => item.json.bad_experience).filter(Boolean);\n    }\n} catch (error) {\n    memories = [];\n}\n\nconst systemPrompt = `Você é uma IA Híbrida: Health AI.\nSua missão é classificar a intenção E gerar a resposta final técnica.\n\nSCHEMA DE RESPOSTA (JSON):\n{\n  \"intent\": \"emergency\" | \"planning\" | \"feedback\" | \"nutrition\" | \"workout\" | \"update_preferences\",\n  \"reply_message\": \"Texto contextual e ESPECÍFICO. Confirme se salvou os dados.\",\n  \"data\": {\n    \"goal\": \"...\", \"injuries\": \"...\", \"disliked_foods\": [], \"disliked_exercises\": [], \"available_equipment\": [],\n    \"feedback_content\": \"...\" \n  }\n}\n\nMEMÓRIA DE ERROS:\n${memories.length > 0 ? JSON.stringify(memories) : \"Nenhum histórico.\"}\n\nDIRETRIZES:\n1. Se for atualização de perfil (como definir objetivo), confirme que entendeu e salvou.\n2. Seja específico.\n\nCONTEXTO ATUAL:\n- Objetivo Atual: ${prefs.goal || \"Não definido (Novo Usuário)\"}\n- Lesões: ${prefs.injuries || \"Nenhuma\"}\n- Equipamentos: ${JSON.stringify(prefs.available_equipment || [\"Peso do corpo\"])}`;\n\nconst promptContexto = `MENSAGEM DO USUÁRIO: \"${userMsg}\"`;\n\nreturn { json: { payload: { \n  model: \"llama-3.3-70b-versatile\", \n  messages: [\n    { role: \"system\", content: systemPrompt },\n    { role: \"user\", content: promptContexto }\n  ], \n  response_format: { type: \"json_object\" } \n} } };"
+        "jsCode": "function getSafeJson(nodeName) {\n    try {\n        const node = $(nodeName).first();\n        return (node && node.json) ? node.json : {};\n    } catch (e) {\n        return {};\n    }\n}\n\nconst prefs = getSafeJson(\"Get Preferences\");\nconst plan = getSafeJson(\"Get Workout Plan\");\nconst userMsg = $(\"Webhook\").first().json.body.message;\nlet memories = [];\ntry {\n    const learningNode = $(\"Get Learning\").first();\n    // Verifica se existe e tem dados reais\n    if (learningNode && learningNode.json && Object.keys(learningNode.json).length > 0) {\n         memories = $(\"Get Learning\").all().map(item => item.json.bad_experience).filter(Boolean);\n    }\n} catch (error) {\n    memories = [];\n}\n\nconst systemPrompt = `Você é uma IA Híbrida: Health AI.\nSua missão é classificar a intenção E gerar a resposta final técnica.\n\nSCHEMA DE RESPOSTA (JSON):\n{\n  \"intent\": \"emergency\" | \"planning\" | \"feedback\" | \"nutrition\" | \"workout\" | \"update_preferences\",\n  \"reply_message\": \"Texto contextual e ESPECÍFICO.\",\n  \"data\": {\n    \"goal\": \"...\", \"injuries\": \"...\", \"disliked_foods\": [], \"disliked_exercises\": [], \"available_equipment\": [],\n    \"feedback_content\": \"...\" \n  }\n}\n\n🔥🔥 MEMÓRIA DE DOR (O QUE EVITAR A TODO CUSTO) 🔥🔥:\n${memories.length > 0 ? JSON.stringify(memories) : \"Nenhum histórico de dor.\"}\n\nDIRETRIZES DE SEGURANÇA MÁXIMA (IMPORTANTE):\n1. LEIA A MEMÓRIA DE DOR ACIMA. Se o usuário relatou dor com um exercício (ex: \"Agachamento\"), você está PROIBIDO de sugerir esse exercício OU QUALQUER VARIAÇÃO DELE.\n   - Exemplo: Se \"Agachamento\" doeu, NÃO sugira \"Agachamento Búlgaro\", \"Agachamento Unilateral\" ou \"Agachamento Sumô\".\n   - AÇÃO: Substitua por um exercício de mecânica diferente (ex: Troque Agachamento por Leg Press, Extensora ou Afundo Estático).\n   - EXPLIQUE: Na resposta, diga: \"Como você sentiu dor com [Exercicio] anteriormente, substituí por [Novo Exercicio] para proteger sua articulação.\"\n\nDIRETRIZES DE ROTEAMENTO:\n1. 🚨 EMERGÊNCIA: Dor no peito, falta de ar -> intent \"emergency\".\n2. 🧠 PLANNER: \"Plano de 30 dias\", \"projeto verão\" -> intent \"planning\".\n3. 🎓 FEEDBACK: \"Doeu\", \"não gostei\" -> intent \"feedback\".\n4. 🔄 ESTADOS (PADRÃO): \"Treino de hoje\", \"mudei dieta\" -> intent \"workout\" ou \"update_preferences\".\n\nCONTEXTO ATUAL:\n- Objetivo: ${prefs.goal || \"Geral\"}\n- Equipamentos: ${JSON.stringify(prefs.available_equipment || [\"Peso do corpo\"])}`;\n\nconst promptContexto = `MENSAGEM DO USUÁRIO: \"${userMsg}\"`;\n\nreturn { json: { payload: { \n  model: \"llama-3.3-70b-versatile\", \n  messages: [\n    { role: \"system\", content: systemPrompt },\n    { role: \"user\", content: promptContexto }\n  ], \n  response_format: { type: \"json_object\" } \n} } };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
@@ -652,8 +652,8 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1568,
-        416
+        1648,
+        208
       ],
       "id": "69af46d9-ebe5-4e45-ad27-8ed4543dd0cc",
       "name": "Get Preferences1",
@@ -955,7 +955,7 @@
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "0a3cbae0-13bf-4c9f-bcd4-e65907da51b7",
+  "versionId": "b2c181f7-82b1-4f54-b3c5-d205757b66ff",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "f6bc6ddf7788eeb5b8a0c9738ed3f094c04734f9fed79e3ae5bbda60be585bd8"

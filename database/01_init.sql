@@ -1,26 +1,27 @@
 -- =================================================================
--- 0. EXTENSÕES (Necessário para gerar UUIDs)
+-- PROJETO IA 2025.1 - SCHEMA DE BANCO DE DADOS (PostgreSQL)
 -- =================================================================
-CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
+
+-- 0. EXTENSÕES
+-- Habilita funções de criptografia e geração de UUIDs randômicos
 CREATE EXTENSION IF NOT EXISTS "pgcrypto";
 
--- =================================================================
--- 1. LIMPEZA (Remove apenas o que será recriado)
--- =================================================================
-DROP TABLE IF EXISTS ai_learning CASCADE;
-DROP TABLE IF EXISTS workout_logs CASCADE;
-DROP TABLE IF EXISTS workout_plans CASCADE;
-DROP TABLE IF EXISTS user_preferences CASCADE;
--- DROP TABLE IF EXISTS workout_state; -- Removido pois não é usado no n8n
-DROP TABLE IF EXISTS food_logs CASCADE;
-DROP TABLE IF EXISTS users CASCADE;
+-- 1. LIMPEZA DE AMBIENTE (DDL)
+-- Remove tabelas antigas para garantir uma instalação limpa
+DROP TABLE IF EXISTS public.ai_learning CASCADE;
+DROP TABLE IF EXISTS public.workout_logs CASCADE;
+DROP TABLE IF EXISTS public.workout_plans CASCADE;
+DROP TABLE IF EXISTS public.user_preferences CASCADE;
+DROP TABLE IF EXISTS public.food_logs CASCADE;
+DROP TABLE IF EXISTS public.users CASCADE;
 
 -- =================================================================
--- 2. TABELAS ESSENCIAIS (Apenas as usadas no n8n)
+-- 2. DEFINIÇÃO DAS TABELAS (SCHEMA)
 -- =================================================================
 
--- 1. Usuários (Base para Foreign Keys)
-CREATE TABLE users (
+-- TABELA: USERS
+-- Entidade central para integridade referencial
+CREATE TABLE public.users (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     username TEXT UNIQUE NOT NULL, 
     current_weight DECIMAL(5,2),
@@ -29,23 +30,25 @@ CREATE TABLE users (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 2. Logs de Alimentação (Usado pelo nó "Create a row" - food_logs)
-CREATE TABLE food_logs (
+-- TABELA: FOOD_LOGS
+-- Histórico de alimentação processado pelo Agente Nutricional
+CREATE TABLE public.food_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE, 
-    raw_text TEXT NOT NULL,       
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE, 
+    raw_text TEXT NOT NULL,       -- Input original do usuário
     calories INT,                 
     protein DECIMAL(10,2),        
     carbs DECIMAL(10,2),          
     fat DECIMAL(10,2),            
-    processed_json JSONB,         
+    processed_json JSONB,         -- Output estruturado da LLM
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
--- 3. Preferências (Usado por "Get Preferences", "Code" e "Execute SQL Query")
--- Define o Estado Atual do Usuário (Objetivos, Lesões, Equipamentos)
-CREATE TABLE user_preferences (
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL PRIMARY KEY, 
+-- TABELA: USER_PREFERENCES (ESTADO)
+-- Armazena o "Current State" do usuário para o Agente Baseado em Estados.
+-- Utiliza JSONB para flexibilidade em listas de exclusão e equipamentos.
+CREATE TABLE public.user_preferences (
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL PRIMARY KEY, 
     goal TEXT,                          
     injuries TEXT,                      
     disliked_exercises JSONB DEFAULT '[]'::JSONB, 
@@ -54,21 +57,23 @@ CREATE TABLE user_preferences (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- 4. Planos de Treino (Usado por "Get Workout Plan" e Agente Planner)
-CREATE TABLE workout_plans (
+-- TABELA: WORKOUT_PLANS (PLANEJAMENTO)
+-- Armazena a saída estruturada do Agente Planner (Objetivos).
+CREATE TABLE public.workout_plans (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL, 
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL, 
     split_type TEXT,                
     current_day TEXT,               
-    plan_structure JSONB,           -- O JSON do plano de 30 dias
+    plan_structure JSONB,           -- JSON contendo a estratégia de longo prazo (Chain of Thought)
     active BOOLEAN DEFAULT TRUE,
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- 5. Logs de Treino (Usado pelo nó "Create a row1" - workout_logs)
-CREATE TABLE workout_logs (
+-- TABELA: WORKOUT_LOGS
+-- Registro de execução de tarefas e feedback imediato.
+CREATE TABLE public.workout_logs (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE NOT NULL, 
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL, 
     workout_day TEXT,               
     exercises_performed JSONB,   
     calories_burned INT,          
@@ -76,23 +81,25 @@ CREATE TABLE workout_logs (
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW() NOT NULL
 );
 
--- 6. Aprendizado da IA (Usado por "Execute SQL query1" e "Get Learning")
--- Essencial para o Agente 4 (Feedback Loop)
-CREATE TABLE ai_learning (
+-- TABELA: AI_LEARNING (MEMÓRIA EPISÓDICA)
+-- Componente crítico para o Agente que Aprende (Requisito 2.4).
+-- Armazena episódios negativos para injetar no contexto futuro (RAG simplificado).
+CREATE TABLE public.ai_learning (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID REFERENCES public.users(id) ON DELETE CASCADE,
     topic TEXT DEFAULT 'Feedback Negativo', 
-    bad_experience TEXT,                    
+    bad_experience TEXT NOT NULL,    -- O fato aprendido (ex: "Dor no joelho com agachamento")
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
 -- =================================================================
--- 3. DADOS DE TESTE (Seed para o n8n não quebrar no primeiro uso)
+-- 3. DADOS DE SEED (PARA TESTES AUTOMATIZADOS)
 -- =================================================================
 
--- Cria os usuários que você usa nos testes CURL
-INSERT INTO users (id, username, current_weight) 
+-- Insere usuários padrão para validação dos fluxos via cURL.
+-- O ID 'fe1e80c2...' é utilizado nos scripts de teste da documentação.
+INSERT INTO public.users (id, username, current_weight) 
 VALUES 
-('65239ade-c15e-4044-8f6e-423ea91809ae', 'usuario_teste_1', 80.0),
-('fe1e80c2-34d1-4edb-a140-875c1c8cfa00', 'usuario_teste_2', 72.0)
+('65239ade-c15e-4044-8f6e-423ea91809ae', 'usuario_demo_1', 80.0),
+('fe1e80c2-34d1-4edb-a140-875c1c8cfa00', 'usuario_demo_2', 72.0)
 ON CONFLICT (id) DO NOTHING;
