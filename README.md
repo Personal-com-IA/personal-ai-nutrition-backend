@@ -1,4 +1,4 @@
-# 🍎 Personal AI Nutrition Backend
+# 🍎 Saúde IA Backend
 
 > Uma API de backend inteligente que utiliza **Llama 3 (via Groq)** e **n8n** para processar linguagem natural e registrar dados nutricionais automaticamente no **Supabase**.
 
