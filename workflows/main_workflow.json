@@ -11,25 +11,25 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        272,
-        0
+        -2560,
+        496
       ],
-      "id": "a3e61f01-fab8-4203-98d7-06cbdf25a3b0",
-      "name": "Webhook",
+      "id": "38096f4c-9ff4-43c3-b63b-abe073f871f2",
+      "name": "Webhook2",
       "webhookId": "9ce84f72-49e0-4a96-9f04-dea2c913ab0d"
     },
     {
       "parameters": {
-        "jsCode": "const rawContent = $json.choices[0].message.content;\nconst aiData = JSON.parse(rawContent);\nconst originalInput = $(\"Webhook\").first().json.body;\n\nconst cleanIntent = aiData.intent ? aiData.intent.trim() : 'update_preferences';\nconst data = aiData.data || {};\n\nlet sqlQuery = \"\";\nlet tableName = \"\";\n\nif (cleanIntent === 'feedback') {\n    sqlQuery = `INSERT INTO ai_learning (user_id, bad_experience, topic) VALUES ('${originalInput.user_id}', '${data.feedback_content || \"Feedback genérico\"}', 'Feedback Negativo') RETURNING id;`;\n    tableName = \"ai_learning\";\n\n} else if (cleanIntent === 'planning') {\n    sqlQuery = `INSERT INTO workout_plans (user_id, plan_structure, active) VALUES ('${originalInput.user_id}', '${JSON.stringify(data)}', true) RETURNING id;`;\n    tableName = \"workout_plans\";\n\n} else {\n    const equipment = JSON.stringify(data.available_equipment || [\"Peso do corpo\"]);\n    const dislikedEx = JSON.stringify(data.disliked_exercises || []);\n    const dislikedFood = JSON.stringify(data.disliked_foods || []);\n    \n    sqlQuery = `\n        INSERT INTO user_preferences (user_id, goal, injuries, available_equipment, disliked_exercises, disliked_foods) \n        VALUES ('${originalInput.user_id}', '${data.goal}', '${data.injuries}', '${equipment}', '${dislikedEx}', '${dislikedFood}')\n        ON CONFLICT (user_id) \n        DO UPDATE SET \n            goal = EXCLUDED.goal,\n            injuries = EXCLUDED.injuries,\n            available_equipment = EXCLUDED.available_equipment,\n            disliked_exercises = EXCLUDED.disliked_exercises,\n            disliked_foods = EXCLUDED.disliked_foods;\n    `;\n    tableName = \"user_preferences\";\n}\n\nreturn [\n  {\n    json: {\n      user_id: originalInput.user_id,\n      intent: cleanIntent,            \n      reply_message: aiData.reply_message,      \n      generated_sql: sqlQuery,\n      target_table: tableName,\n      data: data,\n      calories: data.calories || 0,\n      macros: {\n          protein: data.protein || 0,\n          carbs: data.carbs || 0,\n          fat: data.fat || 0\n      }\n    }\n  }\n];"
+        "jsCode": "const rawContent = $json.choices[0].message.content;\nconst aiData = JSON.parse(rawContent);\nconst originalInput = $(\"Webhook2\").first().json.body;\n\nconst cleanIntent = aiData.intent ? aiData.intent.trim() : 'update_preferences';\nconst data = aiData.data || {};\n\n// CORREÇÃO 1: Extrair o objeto macros que está DENTRO de data\nconst macros = data.macros || { protein: 0, carbs: 0, fat: 0 };\n\nlet sqlQuery = \"\";\nlet tableName = \"\";\n\nif (cleanIntent === 'feedback') {\n    sqlQuery = `INSERT INTO ai_learning (user_id, bad_experience, topic) VALUES ('${originalInput.user_id}', '${data.feedback_content || \"Feedback genérico\"}', 'Feedback Negativo') RETURNING id;`;\n    tableName = \"ai_learning\";\n\n} else if (cleanIntent === 'planning') {\n    sqlQuery = `INSERT INTO workout_plans (user_id, plan_structure, active) VALUES ('${originalInput.user_id}', '${JSON.stringify(data)}', true) RETURNING id;`;\n    tableName = \"workout_plans\";\n\n} else {\n    const equipment = JSON.stringify(data.available_equipment || [\"Peso do corpo\"]);\n    const dislikedEx = JSON.stringify(data.disliked_exercises || []);\n    const dislikedFood = JSON.stringify(data.disliked_foods || []);\n    \n    sqlQuery = `\n        INSERT INTO user_preferences (user_id, goal, injuries, available_equipment, disliked_exercises, disliked_foods) \n        VALUES ('${originalInput.user_id}', '${data.goal}', '${data.injuries}', '${equipment}', '${dislikedEx}', '${dislikedFood}')\n        ON CONFLICT (user_id) \n        DO UPDATE SET \n            goal = EXCLUDED.goal,\n            injuries = EXCLUDED.injuries,\n            available_equipment = EXCLUDED.available_equipment,\n            disliked_exercises = EXCLUDED.disliked_exercises,\n            disliked_foods = EXCLUDED.disliked_foods;\n    `;\n    tableName = \"user_preferences\";\n}\n\nreturn [\n  {\n    json: {\n      user_id: originalInput.user_id,\n      intent: cleanIntent,            \n      reply_message: aiData.reply_message,       \n      generated_sql: sqlQuery,\n      target_table: tableName,\n      data: data,\n      processed_json: JSON.stringify(aiData), \n      calories: data.calories || 0,\n      protein: macros.protein || 0,\n      carbs: macros.carbs || 0,\n      fat: macros.fat || 0\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2384,
-        0
+        -512,
+        496
       ],
-      "id": "f3c422ef-ed6c-451b-88fe-139edad56323",
-      "name": "Code in JavaScript"
+      "id": "7ea46ada-ba21-43c4-8b4d-ab8d7c15fdef",
+      "name": "Code in JavaScript2"
     },
     {
       "parameters": {
@@ -38,11 +38,11 @@
           "fieldValues": [
             {
               "fieldId": "user_id",
-              "fieldValue": "={{ $node[\"Webhook\"].json[\"body\"][\"user_id\"] }}"
+              "fieldValue": "={{ $node[\"Webhook2\"].json[\"body\"][\"user_id\"] }}"
             },
             {
               "fieldId": "raw_text",
-              "fieldValue": "={{$node[\"Webhook\"].json[\"body\"][\"message\"]}}"
+              "fieldValue": "={{$node[\"Webhook2\"].json[\"body\"][\"message\"]}}"
             },
             {
               "fieldId": "calories",
@@ -70,14 +70,14 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        2896,
-        -80
+        64,
+        416
       ],
-      "id": "eec8cb2c-cd92-47fb-9b46-fa89f2d8337b",
-      "name": "Create a row",
+      "id": "041019f3-afa1-4e54-a3fd-d33235b1e14e",
+      "name": "Create a row4",
       "credentials": {
         "supabaseApi": {
-          "id": "VhDa4G1tWR9JYrwZ",
+          "id": "8qSScF1sa6bQ521y",
           "name": "Supabase account"
         }
       }
@@ -85,17 +85,17 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\n  {\n    \"message\": $(\"Code in JavaScript\").first().json.reply_message,\n    \"saved_log\": $json\n  }\n}}",
+        "responseBody": "={{\n  (() => {\n    const aiNode = $(\"Code in JavaScript2\").first(); \n    let msg = aiNode ? aiNode.json.reply_message : \"Processado.\";\n    \n    // Pega os dados brutos do input\n    const log = $json;\n\n    // TRUQUE: Tenta fazer o parse do processed_json se ele for string\n    let parsedData = {};\n    try {\n        parsedData = typeof log.processed_json === 'string' \n            ? JSON.parse(log.processed_json) \n            : log.processed_json;\n    } catch(e) { parsedData = {}; }\n\n    // Garante que temos números válidos para enviar ao frontend\n    // Prioridade: Dados diretos do banco > Dados do JSON processado > 0\n    const finalLog = {\n        ...log,\n        calories: Number(log.calories || parsedData?.data?.calories || 0),\n        protein: Number(log.protein || parsedData?.data?.macros?.protein || 0),\n        carbs: Number(log.carbs || parsedData?.data?.macros?.carbs || 0),\n        fat: Number(log.fat || parsedData?.data?.macros?.fat || 0)\n    };\n\n    return {\n      \"message\": msg, // Manda só a mensagem limpa, o front cria o card\n      \"saved_log\": finalLog, // Manda o objeto corrigido\n      \"agent\": \"Agente Baseado em Estados\"\n    }\n  })()\n}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        3104,
-        -80
+        272,
+        416
       ],
-      "id": "ca68a1c2-74d7-494b-b751-beca63c088eb",
-      "name": "Respond to Webhook"
+      "id": "f6d96220-2f54-4dd5-b8b7-78e4ba866338",
+      "name": "Respond to Webhook12"
     },
     {
       "parameters": {
@@ -175,11 +175,11 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        2576,
-        -16
+        -320,
+        480
       ],
-      "id": "86c6a698-9eee-4b8c-90d0-6a61b4b33588",
-      "name": "Switch"
+      "id": "f8c04892-e1cb-4989-bfdf-1ca788f1bec8",
+      "name": "Switch4"
     },
     {
       "parameters": {
@@ -212,14 +212,14 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        2896,
-        96
+        64,
+        592
       ],
-      "id": "e6215f62-5ecb-4b05-a9d4-026896832f24",
-      "name": "Create a row1",
+      "id": "21eab0f2-642c-481f-ba69-084eb17f2c3c",
+      "name": "Create a row5",
       "credentials": {
         "supabaseApi": {
-          "id": "VhDa4G1tWR9JYrwZ",
+          "id": "8qSScF1sa6bQ521y",
           "name": "Supabase account"
         }
       }
@@ -227,17 +227,17 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\n  {\n    \"message\": $(\"Code in JavaScript\").first().json.reply_message,\n    \"saved_log\": $json\n  }\n}}",
+        "responseBody": "={{\n  {\n    \"message\": $(\"Code in JavaScript2\").first().json.reply_message,\n    \"saved_log\": $json,\n    \"agent\": \"Agente Baseado em Estados\"\n  }\n}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        3104,
-        96
+        272,
+        592
       ],
-      "id": "25842728-9842-4027-b24c-97f69995054b",
-      "name": "Respond to Webhook1"
+      "id": "9d74c8bb-f66a-4c5f-9775-1d2cff5468c3",
+      "name": "Respond to Webhook13"
     },
     {
       "parameters": {
@@ -253,14 +253,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2224,
-        0
+        -704,
+        496
       ],
-      "id": "ad95f633-1f62-40be-94f6-6430a37c32ee",
-      "name": "HTTP Request",
+      "id": "53a74d61-5d8c-45d1-a537-3d3f204e24ce",
+      "name": "HTTP Request2",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "tRiAFyf2W3GuJQ9Z",
+          "id": "NN7fipjeXvsMbUbm",
           "name": "Header Auth account"
         }
       }
@@ -268,17 +268,17 @@
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\n  {\n    \"message\": $(\"Code in JavaScript\").first().json.reply_message,\n    \"status\": \"Preferências atualizadas com sucesso\",\n    \"data_saved\": $json\n  }\n}}",
+        "responseBody": "={{\n  {\n    \"message\": $(\"Code in JavaScript2\").first().json.reply_message,\n    \"saved_log\": $json,\n    \"agent\": \"Agente Baseado em Estados\"\n  }\n}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        3104,
-        288
+        272,
+        784
       ],
-      "id": "19bcd80c-5e8f-4b64-9db2-9e310d2927f3",
-      "name": "Respond to Webhook2"
+      "id": "93f6d356-d8a0-478b-ab2b-7063f5648af3",
+      "name": "Respond to Webhook14"
     },
     {
       "parameters": {
@@ -291,16 +291,16 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        2896,
-        288
+        64,
+        784
       ],
-      "id": "9e3431ce-3238-4430-a695-4db72fbb0ba1",
-      "name": "Execute a SQL query",
+      "id": "1a7caff7-70c4-48b3-bb93-d2ccb6be9954",
+      "name": "Execute a SQL query4",
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "Q0ChOV5clkgHAltG",
-          "name": "Supabase - Postgres account"
+          "id": "GIiIWbYeYhWBCeY8",
+          "name": "Postgres account"
         }
       }
     },
@@ -403,26 +403,26 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        928,
-        -16
+        -1904,
+        480
       ],
-      "id": "4bebc2a1-9cc4-47b0-9eb0-2b504dbba071",
-      "name": "Switch1"
+      "id": "e3473ac5-a0c2-472c-9103-06327f41d612",
+      "name": "Switch5"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "{\n  \"message\": \"⚠️ ALERTA: Detectamos um possível caso de emergência médica. Como uma IA, não posso ajudar. Por favor, dirija-se a um hospital ou ligue para o 192 imediatamente.\"\n}",
+        "responseBody": "{\n  \"message\": \"Detectamos um possível caso de emergência médica. Como uma IA, não posso ajudar.\",\n  \"agent\": \"Agente Reflexivo Simples\"\n}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        1872,
-        -160
+        -960,
+        336
       ],
-      "id": "55df04b3-3128-45ce-b466-1221d83db38b",
-      "name": "Respond to Webhook3"
+      "id": "4b4b6dec-34ee-4594-9b8d-cf282cc1a860",
+      "name": "Respond to Webhook15"
     },
     {
       "parameters": {
@@ -438,100 +438,84 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        2144,
-        272
+        -688,
+        768
       ],
-      "id": "31f21fa9-a018-4940-b826-24e5e49e4b2a",
-      "name": "Agente Planner",
+      "id": "dfa77069-cf92-4392-b802-2d95c661a70d",
+      "name": "Agente Planner2",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "tRiAFyf2W3GuJQ9Z",
+          "id": "NN7fipjeXvsMbUbm",
           "name": "Header Auth account"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const prefsNode = $(\"Get Preferences1\").first(); \nconst prefs = prefsNode ? prefsNode.json : {};\nconst userMsg = $(\"Webhook\").first().json.body.message;\nconst roteadorOutput = $(\"Prepara Roteador\").first().json || {}; \nconst roteadorData = roteadorOutput.payload || {}; \n\nconst plannerPrompt = `Você é um Agente Planejador de Saúde (Planner).\nDiferente de um personal comum, você não prescreve treinos soltos. Você cria ESTRATÉGIAS de longo prazo.\n\nSUA MISSÃO:\n1. Analise o Estado Inicial ($start) e o Objetivo Final ($goal).\n2. Use \"Chain of Thought\": Descreva mentalmente os passos necessários para reduzir a distância entre eles a zero.\n3. Gere um plano estruturado em fases/semanas.\n\nCONTEXTO DO USUÁRIO:\n- Objetivo: ${prefs.goal || \"Melhorar saúde\"}\n- Lesões: ${prefs.injuries || \"Nenhuma\"}\n- Equipamentos: ${JSON.stringify(prefs.available_equipment || [])}\n\nSCHEMA DE RESPOSTA (JSON):\n{\n  \"chain_of_thought\": \"Explique seu raciocínio aqui...\",\n  \"project_name\": \"Nome criativo do projeto (ex: Projeto Verão 30 Dias)\",\n  \"steps\": [\n    {\n      \"phase\": \"Semana 1\",\n      \"focus\": \"Adaptação\",\n      \"actions\": [\"...\"]\n    }\n  ]\n}`;\n\nreturn { json: { payload: {\n  model: \"llama-3.3-70b-versatile\",\n  messages: [\n    { role: \"system\", content: plannerPrompt },\n    { role: \"user\", content: `Crie o plano para: \"${userMsg}\"` }\n  ],\n  response_format: { type: \"json_object\" }\n} } };"
+        "jsCode": "const prefsNode = $(\"Get Preferences5\").first(); \nconst prefs = prefsNode ? prefsNode.json : {};\nconst userMsg = $(\"Webhook2\").first().json.body.message;\nconst roteadorOutput = $(\"Prepara Roteador2\").first().json || {}; \nconst roteadorData = roteadorOutput.payload || {}; \n\nconst plannerPrompt = `Você é um Agente Planejador de Saúde (Planner).\nDiferente de um personal comum, você não prescreve treinos soltos. Você cria ESTRATÉGIAS de longo prazo.\n\nSUA MISSÃO:\n1. Analise o Estado Inicial ($start) e o Objetivo Final ($goal).\n2. Use \"Chain of Thought\": Descreva mentalmente os passos necessários para reduzir a distância entre eles a zero.\n3. Gere um plano estruturado em fases/semanas.\n\nCONTEXTO DO USUÁRIO:\n- Objetivo: ${prefs.goal || \"Melhorar saúde\"}\n- Lesões: ${prefs.injuries || \"Nenhuma\"}\n- Equipamentos: ${JSON.stringify(prefs.available_equipment || [])}\n\nSCHEMA DE RESPOSTA (JSON):\n{\n  \"chain_of_thought\": \"Explique seu raciocínio aqui...\",\n  \"project_name\": \"Nome criativo do projeto (ex: Projeto Verão 30 Dias)\",\n  \"steps\": [\n    {\n      \"phase\": \"Semana 1\",\n      \"focus\": \"Adaptação\",\n      \"actions\": [\"...\"]\n    }\n  ]\n}`;\n\nreturn { json: { payload: {\n  model: \"llama-3.3-70b-versatile\",\n  messages: [\n    { role: \"system\", content: plannerPrompt },\n    { role: \"user\", content: `Crie o plano para: \"${userMsg}\"` }\n  ],\n  response_format: { type: \"json_object\" }\n} } };"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1920,
-        256
+        -912,
+        752
       ],
-      "id": "5d5866a5-6c92-4759-8e60-2aa6cad53c78",
-      "name": "Prepara Planner"
+      "id": "16cd4fc3-e59a-4571-8293-f9e84c125089",
+      "name": "Prepara Planner2"
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\n  (() => {\n    // 1. Pega o texto cru que veio da IA\n    const rawContent = $json.choices[0].message.content;\n    \n    // 2. Converte o texto em Objeto JavaScript (o \"unboxing\")\n    const data = JSON.parse(rawContent);\n\n    // 3. Monta a mensagem final formatada\n    return {\n      \"message\": \"🗺️ Planejei sua jornada! Aqui está o \" + data.project_name + \":\\n\\n\" + \n      \"🧠 Raciocínio: \" + data.chain_of_thought + \"\\n\\n\" +\n      data.steps.map(s => \"📅 \" + s.phase + \" (\" + s.focus + \"):\\n\" + s.actions.map(a => \"- \" + a).join(\"\\n\")).join(\"\\n\\n\")\n    }\n  })()\n}}",
+        "responseBody": "={{\n  (() => {\n    const rawContent = $json.choices[0].message.content;\n    const data = JSON.parse(rawContent);\n\n    return {\n      \"message\": \"🗺️ Planejamento Baseado em Objetivos:\\n\\n\" + \n      \"🧠 Chain of Thought: \" + data.chain_of_thought + \"\\n\\n\" +\n      data.steps.map(s => \"📅 \" + s.phase + \" (\" + s.focus + \"): \" + s.actions.join(\", \")).join(\"\\n\"),\n      \n      \"agent\": \"Agente Baseado em Objetivos\"\n    }\n  })()\n}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        2352,
-        304
+        -480,
+        800
       ],
-      "id": "6c1e0d8e-0959-4a3d-b479-ab578bd86e47",
-      "name": "Respond to Webhook4"
+      "id": "c24b3b6e-d5a7-4051-a4a7-ba95e69c772b",
+      "name": "Respond to Webhook16"
     },
     {
       "parameters": {
         "operation": "executeQuery",
         "query": "INSERT INTO ai_learning (user_id, bad_experience)\nVALUES ($1, $2);",
         "options": {
-          "queryReplacement": "={{ [\n  $node[\"Webhook\"].json.body.user_id, \n  $node[\"Webhook\"].json.body.message \n] }}"
+          "queryReplacement": "={{ [\n  $node[\"Webhook2\"].json.body.user_id, \n  $node[\"Webhook2\"].json.body.message \n] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1888,
-        496
+        -944,
+        992
       ],
-      "id": "ac1718fc-35ca-4052-9f60-8ff12ae2d3cb",
-      "name": "Execute a SQL query1",
+      "id": "6b45537f-3c28-46d2-873e-c4d3758b14ea",
+      "name": "Execute a SQL query5",
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "Q0ChOV5clkgHAltG",
-          "name": "Supabase - Postgres account"
+          "id": "GIiIWbYeYhWBCeY8",
+          "name": "Postgres account"
         }
       }
     },
     {
       "parameters": {
         "respondWith": "json",
-        "responseBody": "={{\n  {\n    \"message\": \"🫡 Entendido! Salvei essa informação ('\" + $node[\"Webhook\"].json.body.message + \"') na minha memória. Não vou sugerir isso novamente nos próximos treinos.\",\n    \"status\": \"learned\"\n  }\n}}",
+        "responseBody": "={{\n  {\n    \"message\": \"🫡 Feedback processado! Salvei essa experiência no meu Banco de Episódios. Na próxima interação, ajustarei meu comportamento.\",\n    \"status\": \"learned\",\n    \"agent\": \"Agente que Aprende\"\n  }\n}}",
         "options": {}
       },
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        2112,
-        496
+        -720,
+        992
       ],
-      "id": "34fa60b7-7837-4ace-b193-c0b3bd5f8d45",
-      "name": "Respond to Webhook5"
-    },
-    {
-      "parameters": {
-        "fileSelector": "/home/node/prompt/system_prompt.txt",
-        "options": {
-          "dataPropertyName": "prompt_content"
-        }
-      },
-      "type": "n8n-nodes-base.readWriteFile",
-      "typeVersion": 1.1,
-      "position": [
-        1904,
-        0
-      ],
-      "id": "1b8ff289-9a51-45f6-a022-218f9e639a6f",
-      "name": "Read/Write Files from Disk"
+      "id": "18ffa60f-303a-44f8-b14b-32d23844c5b7",
+      "name": "Respond to Webhook17"
     },
     {
       "parameters": {
@@ -543,7 +527,7 @@
             {
               "keyName": "user_id",
               "condition": "eq",
-              "keyValue": "={{ $node[\"Webhook\"].json.body.user_id }}"
+              "keyValue": "={{ $node[\"Webhook2\"].json.body.user_id }}"
             }
           ]
         }
@@ -551,15 +535,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1424,
-        0
+        -1408,
+        496
       ],
-      "id": "16441ea9-8f10-4440-b7f8-5ac91d564661",
-      "name": "Get Preferences",
+      "id": "6cbcec0e-ebd5-4382-83a5-c3c41264dfdd",
+      "name": "Get Preferences4",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "VhDa4G1tWR9JYrwZ",
+          "id": "8qSScF1sa6bQ521y",
           "name": "Supabase account"
         }
       }
@@ -574,7 +558,7 @@
             {
               "keyName": "user_id",
               "condition": "eq",
-              "keyValue": "={{ $node[\"Webhook\"].json.body.user_id }}"
+              "keyValue": "={{ $node[\"Webhook2\"].json.body.user_id }}"
             }
           ]
         }
@@ -582,31 +566,31 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1600,
-        0
+        -1232,
+        496
       ],
-      "id": "e1b0d8e1-bd3b-4fff-8229-2fcd657d7da5",
-      "name": "Get Workout Plan",
+      "id": "86feb03b-d094-4937-9e83-b75f69bd27d9",
+      "name": "Get Workout Plan2",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "VhDa4G1tWR9JYrwZ",
+          "id": "8qSScF1sa6bQ521y",
           "name": "Supabase account"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "function getSafeJson(nodeName) {\n    try {\n        const node = $(nodeName).first();\n        return (node && node.json) ? node.json : {};\n    } catch (e) { return {}; }\n}\n\nconst prefs = getSafeJson(\"Get Preferences\");\nconst plan = getSafeJson(\"Get Workout Plan\"); \nconst userMsg = $(\"Webhook\").first().json.body.message;\n\nlet memories = [];\ntry {\n    const learningNode = $(\"Get Learning\").first();\n    if (learningNode && learningNode.json) {\n         const rawMemories = $(\"Get Learning\").all().map(item => item.json.bad_experience).filter(Boolean);\n         memories = [...new Set(rawMemories)]; \n    }\n} catch (error) { memories = []; }\n\nconst systemPrompt = `Você é a IA Principal do Health AI (Nutricionista + Personal Trainer).\nO usuário já passou por uma triagem de segurança inicial. Sua função é ATENDER e ADAPTAR.\n\nOBJETIVO:\nResponder tecnicamente cruzando TREINO ATUAL, PERFIL e MEMÓRIAS.\n\n---\n🧠 INTENÇÕES DO AGENTE (Apenas estas existem no fluxo):\n\n1. 🥗 NUTRITION:\n   - Relatos de comida (\"comi frango\", \"almoço\").\n   - AÇÃO: Calcular macros estimados.\n\n2. 🎓 FEEDBACK (Prioridade Máxima):\n   - Dor, desconforto, \"não gostei\" ou reclamações.\n   - SEGURANÇA: Se algo grave passou pelo filtro (ex: \"dor no peito\"), use esta intenção para recusar educadamente e mandar para o médico.\n   - AÇÃO: Registre o fato para aprendizado.\n\n3. 🏋️ WORKOUT (Padrão):\n   - Pedidos de treino, dúvidas técnicas ou adaptações.\n   - Ex: \"Qual o treino A?\", \"Troca esse exercício\".\n\n4. 🔄 UPDATE_PREFERENCES:\n   - Mudança de objetivo ou perfil (\"agora quero emagrecer\").\n\n---\n🛡️ MEMÓRIA DE DOR (LISTA NEGRA):\n[ ${memories.length > 0 ? JSON.stringify(memories) : \"Nenhum histórico de dor\"} ]\n\nREGRA DE ADAPTAÇÃO:\nSe o exercício pedido estiver na Lista Negra -> BLOQUEIE e SUBSTITUA.\n\n---\n📝 EXEMPLOS (FEW-SHOT):\n\nEx 1 (Adaptação por Dor):\nContexto: Lista Negra tem \"Supino\".\nInput: \"Quero treinar peito\"\nOutput: {\n  \"intent\": \"workout\",\n  \"reply_message\": \"Montei seu treino! Troquei o Supino por Flexões para poupar seu ombro.\",\n  \"data\": { \"workout_day\": \"A\", \"exercises\": [\"Flexão\", \"Crucifixo\"] }\n}\n\nEx 2 (Nutrição):\nInput: \"Comi uma maçã\"\nOutput: {\n  \"intent\": \"nutrition\",\n  \"reply_message\": \"Registrado! Aprox 52kcal.\",\n  \"data\": { \"calories\": 52, \"protein\": 0, \"carbs\": 14, \"fat\": 0 }\n}\n\n---\nCONTEXTO DO USUÁRIO:\n- Objetivo: ${prefs.goal || \"Geral\"}\n- Lesões: ${prefs.injuries || \"Nenhuma\"}\n- Equipamentos: ${JSON.stringify(prefs.available_equipment || [\"Peso do corpo\"])}\n- PLANO ATUAL: ${plan.plan_structure ? JSON.stringify(plan.plan_structure) : \"Nenhum plano ativo.\"}\n\n---\nSCHEMA OBRIGATÓRIO (JSON):\n{\n  \"intent\": \"nutrition\" | \"workout\" | \"feedback\" | \"update_preferences\",\n  \"reply_message\": \"Texto formatado (Markdown).\",\n  \"data\": {\n    \"goal\": \"...\", \"injuries\": \"...\",\n    \"disliked_exercises\": [],\n    \"feedback_content\": \"...\",\n    \"calories\": 0, \"protein\": 0, \"carbs\": 0, \"fat\": 0 // Só p/ nutrition\n  }\n}`;\n\nconst promptContexto = `INPUT DO USUÁRIO: \"${userMsg}\"`;\n\nreturn { json: { payload: { \n  model: \"llama-3.3-70b-versatile\", \n  messages: [\n    { role: \"system\", content: systemPrompt },\n    { role: \"user\", content: promptContexto }\n  ], \n  response_format: { type: \"json_object\" } \n} } };"
+        "jsCode": "// --- 1. FUNÇÕES UTILITÁRIAS ---\nfunction getSafeJson(nodeName) {\n    try {\n        const node = $(nodeName).first();\n        return (node && node.json) ? node.json : {};\n    } catch (e) { return {}; }\n}\n\nfunction getCurrentDateInfo() {\n    const now = new Date();\n    const options = { timeZone: 'America/Sao_Paulo', weekday: 'long', hour: '2-digit', minute: '2-digit' };\n    return now.toLocaleString('pt-BR', options);\n}\n\n// --- 2. COLETA DE DADOS (CONTEXTO) ---\nconst prefs = getSafeJson(\"Get Preferences4\"); \nconst plan = getSafeJson(\"Get Workout Plan2\"); \nconst webhookData = $(\"Webhook2\").first().json.body || {};\nconst userMsg = webhookData.message || \"\"; \nconst timeContext = getCurrentDateInfo();\n\n// Recuperação de Memórias\nlet memories = [];\ntry {\n    const learningNode = $(\"Get Learning2\").first();\n    if ($(\"Get Learning2\").all().length > 0) {\n         const rawMemories = $(\"Get Learning2\").all().map(item => item.json.bad_experience).filter(Boolean);\n         memories = [...new Set(rawMemories)]; \n    }\n} catch (error) { memories = []; }\n\n// --- 3. CONSTRUÇÃO DO PROMPT DO SISTEMA ---\nconst systemPrompt = `\nVocê é a IA Principal do Health AI (Nutricionista Esportivo & Treinador de Alta Performance).\nSua missão é gerenciar a rotina do usuário cruzando INPUT ATUAL + CONTEXTO DO BANCO DE DADOS.\n\n🕒 Contexto Temporal: ${timeContext}\n\n---\n🧠 REGRAS DE RACIOCÍNIO (Chain of Thought):\nAntes de gerar a resposta final, analise internamente:\n1. O usuário tem lesões que conflitam com o pedido?\n2. O exercício pedido está na lista de \"Memórias de Dor\"?\n3. **REGRA DE NUTRIÇÃO:** Se o usuário informar comida, você DEVE estimar os macros (não retorne 0). Use média padrão: \n   - Frango/Carne (100g): ~30g Prot, 0g Carb\n   - Arroz/Macarrão (100g): ~28g Carb, 2g Prot\n\n---\n📋 SCHEMA DE RESPOSTA (JSON OBRIGATÓRIO):\nResponda APENAS um objeto JSON válido:\n\n{\n  \"intent\": \"nutrition\" | \"workout\" | \"feedback\" | \"update_preferences\",\n  \"raciocinio\": \"Explique sua decisão ou cálculo.\",\n  \"reply_message\": \"Texto amigável e formatado. Cite os totais calculados no texto.\",\n  \"data\": {\n    // SE FOR NUTRIÇÃO:\n    \"food_name\": \"Resumo (ex: 150g frango + arroz)\",\n    \"calories\": 0, // Inteiro\n    \"macros\": { \"protein\": 0, \"carbs\": 0, \"fat\": 0 },\n    \n    // SE FOR TREINO:\n    \"workout_day\": \"A\" | \"B\" | \"C\",\n    \"exercises\": [],\n    \"modifications\": \"...\"\n  }\n}\n\n---\n📝 EXEMPLOS CORRETOS (Few-Shot):\n\nEx 1 (Nutrição):\nInput: \"Comi 150g de frango e 200g de arroz\"\nOutput:\n{\n  \"intent\": \"nutrition\",\n  \"raciocinio\": \"150g frango = 45g prot. 200g arroz = 56g carb. Total ~420kcal.\",\n  \"reply_message\": \"🍽️ Registrado! Refeição com aprox **420kcal**.\\\\n\\\\n📊 **Macros:**\\\\n- Prot: 45g\\\\n- Carb: 56g\",\n  \"data\": { \n     \"food_name\": \"150g de frango e 200g de arroz\", \n     \"calories\": 420, \n     \"macros\": { \"protein\": 45, \"carbs\": 56, \"fat\": 5 } \n  }\n}\n\n---\n🛡️ DIRETRIZES DE SEGURANÇA E ADAPTAÇÃO:\n1. Lesões e Dores: Se o usuário relatar dor, substitua por biomecânica segura.\n2. Equipamentos: Limite ao 'available_equipment'.\n\n---\n📂 CONTEXTO DINÂMICO DO USUÁRIO:\n- Objetivo Principal: ${prefs.goal || \"Saúde Geral\"}\n- Lesões/Restrições: ${prefs.injuries || \"Nenhuma registrada\"}\n- Equipamentos: ${JSON.stringify(prefs.available_equipment || [\"Peso do corpo\"])}\n- Treino Atual: ${plan.plan_structure ? JSON.stringify(plan.plan_structure) : \"Nenhum plano ativo.\"}\n- Memória de Dor: ${memories.length > 0 ? JSON.stringify(memories) : \"Nenhuma.\"}\n`;\n\nconst promptContexto = `INPUT DO USUÁRIO: \"${userMsg}\"`;\n\n// --- 4. RETORNO DO PAYLOAD ---\nreturn { \n    json: { \n        payload: { \n            model: \"llama-3.3-70b-versatile\", \n            messages: [\n                { role: \"system\", content: systemPrompt },\n                { role: \"user\", content: promptContexto }\n            ], \n            response_format: { type: \"json_object\" },\n            temperature: 0.2 \n        } \n    } \n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2064,
-        0
+        -896,
+        496
       ],
-      "id": "2b3003af-4c88-4d83-96ba-244b5012a4f1",
-      "name": "Preparar Prompt"
+      "id": "96463380-a32a-4ae5-8df3-9600196e782a",
+      "name": "Preparar Prompt2"
     },
     {
       "parameters": {
@@ -622,14 +606,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        688,
-        0
+        -2144,
+        496
       ],
-      "id": "04e818b6-9bca-47fd-91a3-1bd3c423fe42",
-      "name": "Roteador IA",
+      "id": "5154856a-37fc-41bc-a4ed-e5d7396b9e48",
+      "name": "Roteador IA2",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "tRiAFyf2W3GuJQ9Z",
+          "id": "NN7fipjeXvsMbUbm",
           "name": "Header Auth account"
         }
       }
@@ -644,7 +628,7 @@
             {
               "keyName": "user_id",
               "condition": "eq",
-              "keyValue": "={{ $node[\"Webhook\"].json.body.user_id }}"
+              "keyValue": "={{ $node[\"Webhook2\"].json.body.user_id }}"
             }
           ]
         }
@@ -652,297 +636,286 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        1648,
-        208
+        -1184,
+        704
       ],
-      "id": "69af46d9-ebe5-4e45-ad27-8ed4543dd0cc",
-      "name": "Get Preferences1",
+      "id": "3946918c-9474-483e-912f-d61537a4aca7",
+      "name": "Get Preferences5",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "VhDa4G1tWR9JYrwZ",
+          "id": "8qSScF1sa6bQ521y",
           "name": "Supabase account"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "const userMsg = $(\"Webhook\").first().json.body.message;\nconst systemPrompt = `Você é o Roteador Central (Dispatcher) do sistema Health AI.\nSua ÚNICA função é classificar a mensagem do usuário em uma de 3 rotas de processamento.\n\n---\nDIRETRIZES DE CLASSIFICAÇÃO:\n\n1. EMERGENCY (Rota de Abortar):\n   - APENAS para risco iminente à vida: Infarto, desmaio, falta de ar grave, dor no peito aguda (coração).\n   - IMPORTANTE: Dor muscular, dor articular ou \"me machuquei no treino\" NÃO É EMERGENCY. Isso deve ir para NORMAL.\n\n2. PLANNING (Rota do Agente Planner):\n   - Pedidos de criação de cronogramas, projetos de longo prazo ou desafios.\n   - Ex: \"Crie um plano de 30 dias\", \"Projeto Verão\", \"Quero uma periodização mensal\".\n\n3. NORMAL (Rota do Agente Principal):\n   - TODO O RESTO. Inclui:\n     - Nutrição (\"comi frango\").\n     - Treino (\"qual o treino A?\", \"quero treinar perna\").\n     - Feedback de Dor/Treino (\"meu ombro doeu\", \"não gostei desse exercício\") -> O Agente Principal tratará isso.\n     - Mudança de Perfil (\"quero ganhar massa\").\n\n---\nEXEMPLOS (FEW-SHOT):\n- \"Estou infartando\" -> EMERGENCY\n- \"Senti uma pontada no peito correndo\" -> EMERGENCY\n- \"Meu joelho doeu no agachamento\" -> NORMAL (Isso é feedback técnico)\n- \"Quero um plano de 4 semanas\" -> PLANNING\n- \"Comi arroz\" -> NORMAL\n\nSAÍDA ESPERADA:\nResponda APENAS a palavra da categoria (EMERGENCY, PLANNING ou NORMAL).`;\n\nreturn {\n  json: {\n    payload: {\n      model: \"llama-3.3-70b-versatile\",\n      messages: [\n        { role: \"system\", content: systemPrompt },\n        { role: \"user\", content: userMsg }\n      ],\n      temperature: 0 \n    }\n  }\n};"
+        "jsCode": "const userMsg = $(\"Webhook2\").first().json.body.message;\n\nconst systemPrompt = `Você é o Classificador de Intenções do sistema Health AI.\nSua função é rotear a mensagem para UM de 4 agentes especializados.\n\n🚨 **HIERARQUIA DE PRIORIDADE (IMPORTANTE):**\n1. Se houver **EMERGÊNCIA MÉDICA** -> Rota EMERGENCY.\n2. Se houver **DOR DE TREINO**, **DESCONFORTO**, **RECLAMAÇÃO** ou **FEEDBACK NEGATIVO** -> Rota FEEDBACK (Prioridade sobre NORMAL).\n3. Se pedir **PLANEJAMENTO** de longo prazo -> Rota PLANNING.\n4. Se for interação comum -> Rota NORMAL.\n\n---\nDEFINIÇÃO DAS ROTAS:\n\n1. EMERGENCY (Vida ou Morte):\n   - Infarto, desmaio, falta de ar grave.\n   - ⚠️ Dor no joelho, ombro ou músculo NÃO é emergency.\n\n2. FEEDBACK (Agente que Aprende - Memória):\n   - O usuário relata uma experiência ruim ou dor específica em um exercício.\n   - Gatilhos: \"Não gostei\", \"Doeu\", \"Me machucou\", \"Odeio\", \"Tira esse exercício\", \"Senti desconforto\".\n   - ⚠️ ATENÇÃO: Mesmo que o usuário implichi que quer trocar o treino (ex: \"Doeu, muda pra mim\"), a intenção primária é o FEEDBACK da dor. O sistema precisa aprender isso antes de trocar.\n\n3. PLANNING (Agente Planejador):\n   - Projetos de longo prazo, cronogramas (\"plano de 8 semanas\").\n\n4. NORMAL (Agente de Estado):\n   - Nutrição (\"comi frango\").\n   - Dúvidas (\"como faz supino?\").\n   - Ações neutras (\"mude meu peso\", \"registre o treino\").\n\n---\nEXEMPLOS (FEW-SHOT):\n- \"Estou infartando\" -> EMERGENCY\n- \"Meu joelho doeu no agachamento\" -> FEEDBACK\n- \"Não gostei do Agachamento Búlgaro, senti dor\" -> FEEDBACK\n- \"Odeio fazer barra fixa, troca\" -> FEEDBACK\n- \"Senti uma pontada no ombro fazendo elevação\" -> FEEDBACK\n- \"Quero um plano de 4 semanas\" -> PLANNING\n- \"Comi 200g de arroz\" -> NORMAL\n- \"Mude meu treino para ABC\" -> NORMAL\n- \"Qual o treino de hoje?\" -> NORMAL\n\nSAÍDA OBRIGATÓRIA:\nApenas a palavra em maiúsculo (EMERGENCY, FEEDBACK, PLANNING ou NORMAL).`;\n\nreturn {\n  json: {\n    payload: {\n      model: \"llama-3.3-70b-versatile\",\n      messages: [\n        { role: \"system\", content: systemPrompt },\n        { role: \"user\", content: userMsg }\n      ],\n      temperature: 0 \n    }\n  }\n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        480,
-        0
+        -2352,
+        496
       ],
-      "id": "c420b4f5-a4b8-46eb-9a4d-ae3308bfed6b",
-      "name": "Prepara Roteador"
+      "id": "88ed09a9-736b-49d5-b4b1-ecda01cef191",
+      "name": "Prepara Roteador2"
     },
     {
       "parameters": {
         "operation": "executeQuery",
         "query": "SELECT bad_experience FROM ai_learning WHERE user_id = $1",
         "options": {
-          "queryReplacement": "={{ [ $node[\"Webhook\"].json.body.user_id ] }}"
+          "queryReplacement": "={{ [ $node[\"Webhook2\"].json.body.user_id ] }}"
         }
       },
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        1760,
-        0
+        -1072,
+        496
       ],
-      "id": "4e12ea98-80f6-4c41-b0db-f46562f6c98c",
-      "name": "Get Learning",
+      "id": "15f45783-5348-44b3-b5e3-0f4f0ac0acb1",
+      "name": "Get Learning2",
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "Q0ChOV5clkgHAltG",
-          "name": "Supabase - Postgres account"
+          "id": "GIiIWbYeYhWBCeY8",
+          "name": "Postgres account"
         }
       }
     }
   ],
   "pinData": {},
   "connections": {
-    "Webhook": {
+    "Webhook2": {
       "main": [
         [
           {
-            "node": "Prepara Roteador",
+            "node": "Prepara Roteador2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Code in JavaScript": {
+    "Code in JavaScript2": {
       "main": [
         [
           {
-            "node": "Switch",
+            "node": "Switch4",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Create a row": {
+    "Create a row4": {
       "main": [
         [
           {
-            "node": "Respond to Webhook",
+            "node": "Respond to Webhook12",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Switch": {
+    "Switch4": {
       "main": [
         [
           {
-            "node": "Create a row",
+            "node": "Create a row4",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Create a row1",
+            "node": "Create a row5",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Execute a SQL query",
+            "node": "Execute a SQL query4",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Create a row1": {
+    "Create a row5": {
       "main": [
         [
           {
-            "node": "Respond to Webhook1",
+            "node": "Respond to Webhook13",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "HTTP Request": {
+    "HTTP Request2": {
       "main": [
         [
           {
-            "node": "Code in JavaScript",
+            "node": "Code in JavaScript2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Execute a SQL query": {
+    "Execute a SQL query4": {
       "main": [
         [
           {
-            "node": "Respond to Webhook2",
+            "node": "Respond to Webhook14",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Switch1": {
+    "Switch5": {
       "main": [
         [
           {
-            "node": "Respond to Webhook3",
+            "node": "Respond to Webhook15",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Get Preferences",
+            "node": "Get Preferences4",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Get Preferences1",
+            "node": "Get Preferences5",
             "type": "main",
             "index": 0
           }
         ],
         [
           {
-            "node": "Execute a SQL query1",
+            "node": "Execute a SQL query5",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepara Planner": {
+    "Agente Planner2": {
       "main": [
         [
           {
-            "node": "Agente Planner",
+            "node": "Respond to Webhook16",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Agente Planner": {
+    "Prepara Planner2": {
       "main": [
         [
           {
-            "node": "Respond to Webhook4",
+            "node": "Agente Planner2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Execute a SQL query1": {
+    "Execute a SQL query5": {
       "main": [
         [
           {
-            "node": "Respond to Webhook5",
+            "node": "Respond to Webhook17",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Read/Write Files from Disk": {
+    "Get Preferences4": {
       "main": [
         [
           {
-            "node": "Preparar Prompt",
+            "node": "Get Workout Plan2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Get Preferences": {
+    "Get Workout Plan2": {
       "main": [
         [
           {
-            "node": "Get Workout Plan",
+            "node": "Get Learning2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Get Workout Plan": {
+    "Preparar Prompt2": {
       "main": [
         [
           {
-            "node": "Get Learning",
+            "node": "HTTP Request2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Preparar Prompt": {
+    "Roteador IA2": {
       "main": [
         [
           {
-            "node": "HTTP Request",
+            "node": "Switch5",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Roteador IA": {
+    "Get Preferences5": {
       "main": [
         [
           {
-            "node": "Switch1",
+            "node": "Prepara Planner2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Get Preferences1": {
+    "Prepara Roteador2": {
       "main": [
         [
           {
-            "node": "Prepara Planner",
+            "node": "Roteador IA2",
             "type": "main",
             "index": 0
           }
         ]
       ]
     },
-    "Prepara Roteador": {
+    "Get Learning2": {
       "main": [
         [
           {
-            "node": "Roteador IA",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Get Learning": {
-      "main": [
-        [
-          {
-            "node": "Read/Write Files from Disk",
+            "node": "Preparar Prompt2",
             "type": "main",
             "index": 0
           }
@@ -950,16 +923,16 @@
       ]
     }
   },
-  "active": false,
+  "active": true,
   "settings": {
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "c1926d6a-f35f-4a40-aa61-5bac4687db2f",
+  "versionId": "88519280-cf7e-4de2-a0d4-a0288f82c4bd",
   "meta": {
     "templateCredsSetupCompleted": true,
-    "instanceId": "f6bc6ddf7788eeb5b8a0c9738ed3f094c04734f9fed79e3ae5bbda60be585bd8"
+    "instanceId": "dff924f1dadf19cdc0ca000ecf3e11d51e2e669c8ea619cbae2a330e395d2cb4"
   },
-  "id": "D9oE2I7dzl8SVah3Ud-sh",
+  "id": "25XhaK4LgfXJ3ChSHq8oZ",
   "tags": []
 }
