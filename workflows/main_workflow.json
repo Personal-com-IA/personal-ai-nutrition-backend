@@ -1,5 +1,5 @@
 {
-  "name": "n8n-supabase-ai-pipeline",
+  "name": "My workflow",
   "nodes": [
     {
       "parameters": {
@@ -11,24 +11,24 @@
       "type": "n8n-nodes-base.webhook",
       "typeVersion": 2.1,
       "position": [
-        -2560,
-        496
+        -1680,
+        64
       ],
-      "id": "38096f4c-9ff4-43c3-b63b-abe073f871f2",
+      "id": "a416a36d-9a04-403a-a9b0-10fc4f1db742",
       "name": "Webhook2",
       "webhookId": "9ce84f72-49e0-4a96-9f04-dea2c913ab0d"
     },
     {
       "parameters": {
-        "jsCode": "const rawContent = $json.choices[0].message.content;\nconst aiData = JSON.parse(rawContent);\nconst originalInput = $(\"Webhook2\").first().json.body;\n\nconst cleanIntent = aiData.intent ? aiData.intent.trim() : 'update_preferences';\nconst data = aiData.data || {};\n\n// CORREÇÃO 1: Extrair o objeto macros que está DENTRO de data\nconst macros = data.macros || { protein: 0, carbs: 0, fat: 0 };\n\nlet sqlQuery = \"\";\nlet tableName = \"\";\n\nif (cleanIntent === 'feedback') {\n    sqlQuery = `INSERT INTO ai_learning (user_id, bad_experience, topic) VALUES ('${originalInput.user_id}', '${data.feedback_content || \"Feedback genérico\"}', 'Feedback Negativo') RETURNING id;`;\n    tableName = \"ai_learning\";\n\n} else if (cleanIntent === 'planning') {\n    sqlQuery = `INSERT INTO workout_plans (user_id, plan_structure, active) VALUES ('${originalInput.user_id}', '${JSON.stringify(data)}', true) RETURNING id;`;\n    tableName = \"workout_plans\";\n\n} else {\n    const equipment = JSON.stringify(data.available_equipment || [\"Peso do corpo\"]);\n    const dislikedEx = JSON.stringify(data.disliked_exercises || []);\n    const dislikedFood = JSON.stringify(data.disliked_foods || []);\n    \n    sqlQuery = `\n        INSERT INTO user_preferences (user_id, goal, injuries, available_equipment, disliked_exercises, disliked_foods) \n        VALUES ('${originalInput.user_id}', '${data.goal}', '${data.injuries}', '${equipment}', '${dislikedEx}', '${dislikedFood}')\n        ON CONFLICT (user_id) \n        DO UPDATE SET \n            goal = EXCLUDED.goal,\n            injuries = EXCLUDED.injuries,\n            available_equipment = EXCLUDED.available_equipment,\n            disliked_exercises = EXCLUDED.disliked_exercises,\n            disliked_foods = EXCLUDED.disliked_foods;\n    `;\n    tableName = \"user_preferences\";\n}\n\nreturn [\n  {\n    json: {\n      user_id: originalInput.user_id,\n      intent: cleanIntent,            \n      reply_message: aiData.reply_message,       \n      generated_sql: sqlQuery,\n      target_table: tableName,\n      data: data,\n      processed_json: JSON.stringify(aiData), \n      calories: data.calories || 0,\n      protein: macros.protein || 0,\n      carbs: macros.carbs || 0,\n      fat: macros.fat || 0\n    }\n  }\n];"
+        "jsCode": "const rawContent = $json.choices[0].message.content;\nconst aiData = JSON.parse(rawContent);\nconst originalInput = $(\"Webhook2\").first().json.body;\n\nconst cleanIntent = aiData.intent ? aiData.intent.trim() : 'update_preferences';\nconst data = aiData.data || {};\n\n// CORREÇÃO 1: Extrair o objeto macros que está DENTRO de data\nconst macros = data.macros || { protein: 0, carbs: 0, fat: 0 };\n\nlet sqlQuery = \"\";\nlet tableName = \"\";\n\nif (cleanIntent === 'feedback') {\n    sqlQuery = `INSERT INTO ai_learning (user_id, bad_experience, topic) VALUES ('${originalInput.user_id}', '${data.feedback_content || \"Feedback genérico\"}', 'Feedback Negativo') RETURNING id;`;\n    tableName = \"ai_learning\";\n\n} else if (cleanIntent === 'planning') {\n    sqlQuery = `INSERT INTO workout_plans (user_id, plan_structure, active) VALUES ('${originalInput.user_id}', '${JSON.stringify(data)}', true) RETURNING id;`;\n    tableName = \"workout_plans\";\n\n} else {\n    // --- LÓGICA DE PREFERÊNCIAS OTIMIZADA ---\n    \n    // 1. Tratamento para garantir Arrays válidos (evita erros se vier string ou nulo)\n    const equipment = JSON.stringify(data.available_equipment || [\"Peso do corpo\"]);\n    \n    // Transforma string única em array se necessário (ex: \"peixe\" vira [\"peixe\"])\n    let newDislikedEx = Array.isArray(data.disliked_exercises) ? data.disliked_exercises : [];\n    let newDislikedFood = Array.isArray(data.disliked_foods) ? data.disliked_foods : [];\n    \n    if (typeof data.disliked_exercises === 'string') newDislikedEx = [data.disliked_exercises];\n    if (typeof data.disliked_foods === 'string') newDislikedFood = [data.disliked_foods];\n\n    // Prepara JSON para o SQL\n    const jsonNewEx = JSON.stringify(newDislikedEx);\n    const jsonNewFood = JSON.stringify(newDislikedFood);\n    \n    // 2. SQL Query com MERGE (Adiciona sem apagar o anterior)\n    sqlQuery = `\n        INSERT INTO user_preferences (user_id, goal, injuries, available_equipment, disliked_exercises, disliked_foods) \n        VALUES (\n            '${originalInput.user_id}', \n            '${data.goal || \"\"}', \n            '${data.injuries || \"\"}', \n            '${equipment}'::jsonb, \n            '${jsonNewEx}'::jsonb, \n            '${jsonNewFood}'::jsonb\n        )\n        ON CONFLICT (user_id) \n        DO UPDATE SET \n            -- Só atualiza Objetivo/Lesões se vier algo novo (diferente de vazio)\n            goal = CASE WHEN EXCLUDED.goal <> '' AND EXCLUDED.goal <> 'undefined' THEN EXCLUDED.goal ELSE user_preferences.goal END,\n            injuries = CASE WHEN EXCLUDED.injuries <> '' AND EXCLUDED.injuries <> 'undefined' THEN EXCLUDED.injuries ELSE user_preferences.injuries END,\n            \n            -- Mescla a lista nova com a antiga (evita sobrescrever)\n            available_equipment = CASE WHEN jsonb_array_length(EXCLUDED.available_equipment) > 0 THEN EXCLUDED.available_equipment ELSE user_preferences.available_equipment END,\n            \n            disliked_exercises = (\n                SELECT jsonb_agg(DISTINCT x) \n                FROM jsonb_array_elements(COALESCE(user_preferences.disliked_exercises, '[]'::jsonb) || EXCLUDED.disliked_exercises) t(x)\n            ),\n            disliked_foods = (\n                SELECT jsonb_agg(DISTINCT x) \n                FROM jsonb_array_elements(COALESCE(user_preferences.disliked_foods, '[]'::jsonb) || EXCLUDED.disliked_foods) t(x)\n            );\n    `;\n    tableName = \"user_preferences\";\n}\n\nreturn [\n  {\n    json: {\n      user_id: originalInput.user_id,\n      intent: cleanIntent,            \n      reply_message: aiData.reply_message,       \n      generated_sql: sqlQuery,\n      target_table: tableName,\n      data: data,\n      processed_json: JSON.stringify(aiData), \n      calories: data.calories || 0,\n      protein: macros.protein || 0,\n      carbs: macros.carbs || 0,\n      fat: macros.fat || 0\n    }\n  }\n];"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -512,
-        496
+        368,
+        64
       ],
-      "id": "7ea46ada-ba21-43c4-8b4d-ab8d7c15fdef",
+      "id": "f88ca934-a788-4876-a3e3-15180ff657f3",
       "name": "Code in JavaScript2"
     },
     {
@@ -70,14 +70,14 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        64,
-        416
+        944,
+        -16
       ],
-      "id": "041019f3-afa1-4e54-a3fd-d33235b1e14e",
+      "id": "72e1f6e0-8610-4bc6-8690-7154d33001ec",
       "name": "Create a row4",
       "credentials": {
         "supabaseApi": {
-          "id": "8qSScF1sa6bQ521y",
+          "id": "rAdp9BTyymRlwatM",
           "name": "Supabase account"
         }
       }
@@ -91,10 +91,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        272,
-        416
+        1152,
+        -16
       ],
-      "id": "f6d96220-2f54-4dd5-b8b7-78e4ba866338",
+      "id": "ee20ea2d-01df-4c5f-8f49-bf05f0961bae",
       "name": "Respond to Webhook12"
     },
     {
@@ -175,10 +175,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        -320,
-        480
+        560,
+        48
       ],
-      "id": "f8c04892-e1cb-4989-bfdf-1ca788f1bec8",
+      "id": "0590b165-f48d-40cd-a15e-c056022c4edf",
       "name": "Switch4"
     },
     {
@@ -212,14 +212,14 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        64,
-        592
+        944,
+        160
       ],
-      "id": "21eab0f2-642c-481f-ba69-084eb17f2c3c",
+      "id": "4e91e8e2-17b1-4277-9670-aecb509ad562",
       "name": "Create a row5",
       "credentials": {
         "supabaseApi": {
-          "id": "8qSScF1sa6bQ521y",
+          "id": "rAdp9BTyymRlwatM",
           "name": "Supabase account"
         }
       }
@@ -233,10 +233,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        272,
-        592
+        1152,
+        160
       ],
-      "id": "9d74c8bb-f66a-4c5f-9775-1d2cff5468c3",
+      "id": "2ec1e3b2-f5f2-41f6-ac22-28967c8c57d9",
       "name": "Respond to Webhook13"
     },
     {
@@ -253,14 +253,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -704,
-        496
+        176,
+        64
       ],
-      "id": "53a74d61-5d8c-45d1-a537-3d3f204e24ce",
+      "id": "94ee2287-be96-47e5-8a69-a5e61481198d",
       "name": "HTTP Request2",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "NN7fipjeXvsMbUbm",
+          "id": "5apLCAkROThirZHS",
           "name": "Header Auth account"
         }
       }
@@ -274,10 +274,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        272,
-        784
+        1152,
+        352
       ],
-      "id": "93f6d356-d8a0-478b-ab2b-7063f5648af3",
+      "id": "a9494abc-e051-4de4-8cf6-79ecf64b96d3",
       "name": "Respond to Webhook14"
     },
     {
@@ -291,15 +291,15 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        64,
-        784
+        944,
+        352
       ],
-      "id": "1a7caff7-70c4-48b3-bb93-d2ccb6be9954",
+      "id": "457411ec-7258-4cfe-beaf-95d68e952ca6",
       "name": "Execute a SQL query4",
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "GIiIWbYeYhWBCeY8",
+          "id": "CP6K3WXLdN63GxoZ",
           "name": "Postgres account"
         }
       }
@@ -403,10 +403,10 @@
       "type": "n8n-nodes-base.switch",
       "typeVersion": 3.4,
       "position": [
-        -1904,
-        480
+        -1024,
+        48
       ],
-      "id": "e3473ac5-a0c2-472c-9103-06327f41d612",
+      "id": "f0b256a5-9e40-469b-9836-1b9057e70ea3",
       "name": "Switch5"
     },
     {
@@ -418,10 +418,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        -960,
-        336
+        -80,
+        -96
       ],
-      "id": "4b4b6dec-34ee-4594-9b8d-cf282cc1a860",
+      "id": "4e90fbed-bef9-4604-abb8-12c7ac198b1c",
       "name": "Respond to Webhook15"
     },
     {
@@ -438,14 +438,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -688,
-        768
+        192,
+        336
       ],
-      "id": "dfa77069-cf92-4392-b802-2d95c661a70d",
+      "id": "18a70d20-338e-4d25-b338-a3e09565611e",
       "name": "Agente Planner2",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "NN7fipjeXvsMbUbm",
+          "id": "5apLCAkROThirZHS",
           "name": "Header Auth account"
         }
       }
@@ -457,10 +457,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -912,
-        752
+        -32,
+        320
       ],
-      "id": "16cd4fc3-e59a-4571-8293-f9e84c125089",
+      "id": "33413a14-59d2-48ca-b26a-15c320132858",
       "name": "Prepara Planner2"
     },
     {
@@ -472,10 +472,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        -480,
-        800
+        400,
+        368
       ],
-      "id": "c24b3b6e-d5a7-4051-a4a7-ba95e69c772b",
+      "id": "281ece01-182f-41fb-98e2-52b68333b495",
       "name": "Respond to Webhook16"
     },
     {
@@ -489,15 +489,15 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        -944,
-        992
+        -64,
+        560
       ],
-      "id": "6b45537f-3c28-46d2-873e-c4d3758b14ea",
+      "id": "63331b06-26e9-4aab-9891-5cfe1b97c4a8",
       "name": "Execute a SQL query5",
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "GIiIWbYeYhWBCeY8",
+          "id": "CP6K3WXLdN63GxoZ",
           "name": "Postgres account"
         }
       }
@@ -511,10 +511,10 @@
       "type": "n8n-nodes-base.respondToWebhook",
       "typeVersion": 1.5,
       "position": [
-        -720,
-        992
+        160,
+        560
       ],
-      "id": "18ffa60f-303a-44f8-b14b-32d23844c5b7",
+      "id": "736c8912-f9dd-4b1d-8900-1b9d274a1535",
       "name": "Respond to Webhook17"
     },
     {
@@ -535,15 +535,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        -1408,
-        496
+        -528,
+        64
       ],
-      "id": "6cbcec0e-ebd5-4382-83a5-c3c41264dfdd",
+      "id": "e26345b6-82c2-4376-b5b2-ae112b3e8e29",
       "name": "Get Preferences4",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "8qSScF1sa6bQ521y",
+          "id": "rAdp9BTyymRlwatM",
           "name": "Supabase account"
         }
       }
@@ -566,30 +566,30 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        -1232,
-        496
+        -352,
+        64
       ],
-      "id": "86feb03b-d094-4937-9e83-b75f69bd27d9",
+      "id": "de2fe833-a15a-4b91-ac50-8e2f6900e793",
       "name": "Get Workout Plan2",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "8qSScF1sa6bQ521y",
+          "id": "rAdp9BTyymRlwatM",
           "name": "Supabase account"
         }
       }
     },
     {
       "parameters": {
-        "jsCode": "// --- 1. FUNÇÕES UTILITÁRIAS ---\nfunction getSafeJson(nodeName) {\n    try {\n        const node = $(nodeName).first();\n        return (node && node.json) ? node.json : {};\n    } catch (e) { return {}; }\n}\n\nfunction getCurrentDateInfo() {\n    const now = new Date();\n    const options = { timeZone: 'America/Sao_Paulo', weekday: 'long', hour: '2-digit', minute: '2-digit' };\n    return now.toLocaleString('pt-BR', options);\n}\n\n// --- 2. COLETA DE DADOS (CONTEXTO) ---\nconst prefs = getSafeJson(\"Get Preferences4\"); \nconst plan = getSafeJson(\"Get Workout Plan2\"); \nconst webhookData = $(\"Webhook2\").first().json.body || {};\nconst userMsg = webhookData.message || \"\"; \nconst timeContext = getCurrentDateInfo();\n\n// Recuperação de Memórias\nlet memories = [];\ntry {\n    const learningNode = $(\"Get Learning2\").first();\n    if ($(\"Get Learning2\").all().length > 0) {\n         const rawMemories = $(\"Get Learning2\").all().map(item => item.json.bad_experience).filter(Boolean);\n         memories = [...new Set(rawMemories)]; \n    }\n} catch (error) { memories = []; }\n\n// --- 3. CONSTRUÇÃO DO PROMPT DO SISTEMA ---\nconst systemPrompt = `\nVocê é a IA Principal do Health AI (Nutricionista Esportivo & Treinador de Alta Performance).\nSua missão é gerenciar a rotina do usuário cruzando INPUT ATUAL + CONTEXTO DO BANCO DE DADOS.\n\n🕒 Contexto Temporal: ${timeContext}\n\n---\n🧠 REGRAS DE RACIOCÍNIO (Chain of Thought):\nAntes de gerar a resposta final, analise internamente:\n1. O usuário tem lesões que conflitam com o pedido?\n2. O exercício pedido está na lista de \"Memórias de Dor\"?\n3. **REGRA DE NUTRIÇÃO:** Se o usuário informar comida, você DEVE estimar os macros (não retorne 0). Use média padrão: \n   - Frango/Carne (100g): ~30g Prot, 0g Carb\n   - Arroz/Macarrão (100g): ~28g Carb, 2g Prot\n\n---\n📋 SCHEMA DE RESPOSTA (JSON OBRIGATÓRIO):\nResponda APENAS um objeto JSON válido:\n\n{\n  \"intent\": \"nutrition\" | \"workout\" | \"feedback\" | \"update_preferences\",\n  \"raciocinio\": \"Explique sua decisão ou cálculo.\",\n  \"reply_message\": \"Texto amigável e formatado. Cite os totais calculados no texto.\",\n  \"data\": {\n    // SE FOR NUTRIÇÃO:\n    \"food_name\": \"Resumo (ex: 150g frango + arroz)\",\n    \"calories\": 0, // Inteiro\n    \"macros\": { \"protein\": 0, \"carbs\": 0, \"fat\": 0 },\n    \n    // SE FOR TREINO:\n    \"workout_day\": \"A\" | \"B\" | \"C\",\n    \"exercises\": [],\n    \"modifications\": \"...\"\n  }\n}\n\n---\n📝 EXEMPLOS CORRETOS (Few-Shot):\n\nEx 1 (Nutrição):\nInput: \"Comi 150g de frango e 200g de arroz\"\nOutput:\n{\n  \"intent\": \"nutrition\",\n  \"raciocinio\": \"150g frango = 45g prot. 200g arroz = 56g carb. Total ~420kcal.\",\n  \"reply_message\": \"🍽️ Registrado! Refeição com aprox **420kcal**.\\\\n\\\\n📊 **Macros:**\\\\n- Prot: 45g\\\\n- Carb: 56g\",\n  \"data\": { \n     \"food_name\": \"150g de frango e 200g de arroz\", \n     \"calories\": 420, \n     \"macros\": { \"protein\": 45, \"carbs\": 56, \"fat\": 5 } \n  }\n}\n\n---\n🛡️ DIRETRIZES DE SEGURANÇA E ADAPTAÇÃO:\n1. Lesões e Dores: Se o usuário relatar dor, substitua por biomecânica segura.\n2. Equipamentos: Limite ao 'available_equipment'.\n\n---\n📂 CONTEXTO DINÂMICO DO USUÁRIO:\n- Objetivo Principal: ${prefs.goal || \"Saúde Geral\"}\n- Lesões/Restrições: ${prefs.injuries || \"Nenhuma registrada\"}\n- Equipamentos: ${JSON.stringify(prefs.available_equipment || [\"Peso do corpo\"])}\n- Treino Atual: ${plan.plan_structure ? JSON.stringify(plan.plan_structure) : \"Nenhum plano ativo.\"}\n- Memória de Dor: ${memories.length > 0 ? JSON.stringify(memories) : \"Nenhuma.\"}\n`;\n\nconst promptContexto = `INPUT DO USUÁRIO: \"${userMsg}\"`;\n\n// --- 4. RETORNO DO PAYLOAD ---\nreturn { \n    json: { \n        payload: { \n            model: \"llama-3.3-70b-versatile\", \n            messages: [\n                { role: \"system\", content: systemPrompt },\n                { role: \"user\", content: promptContexto }\n            ], \n            response_format: { type: \"json_object\" },\n            temperature: 0.2 \n        } \n    } \n};"
+        "jsCode": "// --- 1. FUNÇÕES UTILITÁRIAS ---\nfunction getSafeJson(nodeName) {\n    try {\n        const node = $(nodeName).first();\n        return (node && node.json) ? node.json : {};\n    } catch (e) { return {}; }\n}\n\nfunction getCurrentDateInfo() {\n    const now = new Date();\n    const options = { timeZone: 'America/Sao_Paulo', weekday: 'long', hour: '2-digit', minute: '2-digit' };\n    return now.toLocaleString('pt-BR', options);\n}\n\n// --- 2. COLETA DE DADOS (CONTEXTO) ---\nconst prefs = getSafeJson(\"Get Preferences4\"); \nconst plan = getSafeJson(\"Get Workout Plan2\"); \nconst webhookData = $(\"Webhook2\").first().json.body || {};\nconst userMsg = webhookData.message || \"\"; \nconst timeContext = getCurrentDateInfo();\n\n// Recuperação de Memórias\nlet memories = [];\ntry {\n    const learningNode = $(\"Get Learning2\").first();\n    if ($(\"Get Learning2\").all().length > 0) {\n         const rawMemories = $(\"Get Learning2\").all().map(item => item.json.bad_experience).filter(Boolean);\n         memories = [...new Set(rawMemories)]; \n    }\n} catch (error) { memories = []; }\n\n// --- 3. CONSTRUÇÃO DO PROMPT DO SISTEMA ---\nconst systemPrompt = `\nVocê é a IA Principal do Health AI (Nutricionista Esportivo & Treinador de Alta Performance).\nSua missão é gerenciar a rotina do usuário cruzando INPUT ATUAL + CONTEXTO DO BANCO DE DADOS.\n\n🕒 Contexto Temporal: ${timeContext}\n\n---\n🧠 REGRAS DE RACIOCÍNIO (Chain of Thought):\n1. O usuário tem lesões que conflitam com o pedido?\n2. **IMPORTANTE:** Se o usuário mencionar algo que gosta/não gosta, preencha os campos de preferência no JSON.\n3. **REGRA DE NUTRIÇÃO:** Estime macros para alimentos informados.\n\n---\n📋 SCHEMA DE RESPOSTA (JSON OBRIGATÓRIO):\nResponda APENAS um objeto JSON válido:\n\n{\n  \"intent\": \"nutrition\" | \"workout\" | \"feedback\" | \"update_preferences\",\n  \"raciocinio\": \"Explique sua decisão.\",\n  \"reply_message\": \"Texto amigável.\",\n  \"data\": {\n    // --- DADOS DE PERFIL (Preencher se o usuário falar) ---\n    \"goal\": \"ex: Hipertrofia\",\n    \"injuries\": \"ex: Dor no ombro\",\n    \"disliked_exercises\": [\"ex: flexão\"],\n    \"disliked_foods\": [\"ex: peixe\", \"lactose\"],\n    \"available_equipment\": [\"ex: halteres\"],\n\n    // --- DADOS DE ROTINA ---\n    \"food_name\": \"...\",\n    \"calories\": 0,\n    \"macros\": { \"protein\": 0, \"carbs\": 0, \"fat\": 0 },\n    \"workout_day\": \"A\",\n    \"exercises\": [],\n    \"modifications\": \"...\"\n  }\n}\n\n---\n🛡️ DIRETRIZES DE SEGURANÇA E ADAPTAÇÃO:\n1. Lesões e Dores: Se o usuário relatar dor, substitua por biomecânica segura.\n2. Equipamentos: Limite ao 'available_equipment'.\n\n---\n📂 CONTEXTO DINÂMICO DO USUÁRIO:\n- Objetivo Principal: ${prefs.goal || \"Saúde Geral\"}\n- Lesões/Restrições: ${prefs.injuries || \"Nenhuma registrada\"}\n- Alimentos que ODEIA: ${JSON.stringify(prefs.disliked_foods || [])}\n- Exercícios que ODEIA: ${JSON.stringify(prefs.disliked_exercises || [])}\n- Equipamentos: ${JSON.stringify(prefs.available_equipment || [\"Peso do corpo\"])}\n- Treino Atual: ${plan.plan_structure ? JSON.stringify(plan.plan_structure) : \"Nenhum plano ativo.\"}\n- Memória de Dor: ${memories.length > 0 ? JSON.stringify(memories) : \"Nenhuma.\"}\n`;\n\nconst promptContexto = `INPUT DO USUÁRIO: \"${userMsg}\"`;\n\n// --- 4. RETORNO DO PAYLOAD ---\nreturn { \n    json: { \n        payload: { \n            model: \"llama-3.3-70b-versatile\", \n            messages: [\n                { role: \"system\", content: systemPrompt },\n                { role: \"user\", content: promptContexto }\n            ], \n            response_format: { type: \"json_object\" },\n            temperature: 0.2 \n        } \n    } \n};"
       },
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -896,
-        496
+        -16,
+        64
       ],
-      "id": "96463380-a32a-4ae5-8df3-9600196e782a",
+      "id": "06af5f92-b436-4ef9-87b1-fb47d29a43f5",
       "name": "Preparar Prompt2"
     },
     {
@@ -606,14 +606,14 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.3,
       "position": [
-        -2144,
-        496
+        -1264,
+        64
       ],
-      "id": "5154856a-37fc-41bc-a4ed-e5d7396b9e48",
+      "id": "520ad288-3c7d-48dd-948e-97f99b1e6172",
       "name": "Roteador IA2",
       "credentials": {
         "httpHeaderAuth": {
-          "id": "NN7fipjeXvsMbUbm",
+          "id": "5apLCAkROThirZHS",
           "name": "Header Auth account"
         }
       }
@@ -636,15 +636,15 @@
       "type": "n8n-nodes-base.supabase",
       "typeVersion": 1,
       "position": [
-        -1184,
-        704
+        -304,
+        272
       ],
-      "id": "3946918c-9474-483e-912f-d61537a4aca7",
+      "id": "f1174e3f-1709-4858-a342-6646188e652b",
       "name": "Get Preferences5",
       "alwaysOutputData": true,
       "credentials": {
         "supabaseApi": {
-          "id": "8qSScF1sa6bQ521y",
+          "id": "rAdp9BTyymRlwatM",
           "name": "Supabase account"
         }
       }
@@ -656,10 +656,10 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        -2352,
-        496
+        -1472,
+        64
       ],
-      "id": "88ed09a9-736b-49d5-b4b1-ecda01cef191",
+      "id": "e7b8422c-3061-485d-89c7-638f7a107534",
       "name": "Prepara Roteador2"
     },
     {
@@ -673,15 +673,15 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.6,
       "position": [
-        -1072,
-        496
+        -192,
+        64
       ],
-      "id": "15f45783-5348-44b3-b5e3-0f4f0ac0acb1",
+      "id": "0e9aa1cf-867b-45ca-a072-f70469145335",
       "name": "Get Learning2",
       "alwaysOutputData": true,
       "credentials": {
         "postgres": {
-          "id": "GIiIWbYeYhWBCeY8",
+          "id": "CP6K3WXLdN63GxoZ",
           "name": "Postgres account"
         }
       }
@@ -928,11 +928,11 @@
     "executionOrder": "v1",
     "availableInMCP": false
   },
-  "versionId": "88519280-cf7e-4de2-a0d4-a0288f82c4bd",
+  "versionId": "60a60352-aa32-43dd-a222-6bce9a04e7b3",
   "meta": {
     "templateCredsSetupCompleted": true,
     "instanceId": "dff924f1dadf19cdc0ca000ecf3e11d51e2e669c8ea619cbae2a330e395d2cb4"
   },
-  "id": "25XhaK4LgfXJ3ChSHq8oZ",
+  "id": "nEA5l9M48GX9KpiDlAu3f",
   "tags": []
 }
